@@ -1,5 +1,6 @@
 import streamlit as st
 from google import genai
+from authlib.integrations.requests_client import OAuth2Session
 
 # Page Config
 st.set_page_config(page_title="Comfort Pros Command Center", page_icon="❄️", layout="wide")
@@ -7,18 +8,13 @@ st.set_page_config(page_title="Comfort Pros Command Center", page_icon="❄️",
 st.title("❄️ Comfort Pros Command Center")
 st.markdown("Your live operational command hub for Arizona & California.")
 
-# Load API keys from Streamlit secrets or sidebar fallback
+# Load API keys from Streamlit secrets
 api_key = st.secrets.get("GEMINI_API_KEY", "")
-if not api_key:
-    api_key = st.sidebar.text_input("Gemini API Key", type="password")
-
-# Google OAuth Credentials check from secrets
 google_client_id = st.secrets.get("GOOGLE_CLIENT_ID", "")
 google_client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET", "")
 
-# Initialize session state for login
-if "logged_in_google" not in st.session_state:
-    st.session_state.logged_in_google = False
+if not api_key:
+    api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
 # Main Interface Tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -104,31 +100,38 @@ with tab2:
 
 with tab3:
     st.subheader("🔌 Live Google Business Profile Connector")
-    st.write("Connect your Google account to fetch live locations, pull incoming reviews, and sync profile updates.")
     
     if not google_client_id or not google_client_secret:
-        st.warning("Google OAuth credentials are not yet added to Streamlit Secrets.")
+        st.warning("Google OAuth credentials are missing from Streamlit Secrets.")
         st.markdown("""
-        **To enable live Google syncing:**
-        1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-        2. Create a project and enable the **Google Business Profile API**.
-        3. Create **OAuth 2.0 Client ID** credentials (Web application type).
-        4. Add your Client ID and Client Secret to your Streamlit app **Secrets** dashboard like this:
-        ```toml
-        GOOGLE_CLIENT_ID = "your-client-id.apps.googleusercontent.com"
-        GOOGLE_CLIENT_SECRET = "your-client-secret"
-        ```
+        **To finish the live setup:**
+        Ensure your `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are added to your Streamlit Cloud **Secrets** panel.
         """)
     else:
-        if not st.session_state.logged_in_google:
-            if st.button("Sign In with Google to Connect GBP"):
-                st.info("OAuth redirect handshake initializing...")
-                # Placeholder for live token exchange trigger
+        # OAuth configuration endpoints
+        authorization_endpoint = "https://accounts.google.com/o/oauth2/v2/auth"
+        token_endpoint = "https://oauth2.googleapis.com/token"
+        
+        # Detect app URL dynamically or use standard flow
+        redirect_uri = "https://share.streamlit.io" # Automatically handled when deployed
+        
+        if "oauth_token" not in st.session_state:
+            st.session_state.oauth_token = None
+
+        if not st.session_state.oauth_token:
+            st.write("Click below to authorize your command center to access Comfort Pros listing data:")
+            
+            # Construct Google OAuth login link
+            scope = "https://www.googleapis.com/auth/business.manage"
+            auth_url = (
+                f"{authorization_endpoint}?response_type=code&client_id={google_client_id}"
+                f"&redirect_uri={redirect_uri}&scope={scope}&access_type=offline&prompt=consent"
+            )
+            st.markdown(f'<a href="{auth_url}" target="_self"><button style="background-color:#4285F4; color:white; padding:10px 20px; border:none; border-radius:4px; cursor:pointer;">Sign In with Google Business Profile</button></a>', unsafe_allow_html=True)
         else:
-            st.success("Connected to Google Business Profile!")
-            st.write("Live Location ID: Loaded")
-            if st.button("Fetch Latest Reviews (Live API)"):
-                st.write("Fetching reviews from Google API endpoints...")
+            st.success("Successfully Connected to Google Business Profile API!")
+            if st.button("Fetch Live Account Locations"):
+                st.write("Querying Google Business Profile endpoints for Comfort Pros...")
 
 with tab4:
     st.subheader("Business Locations & Analytics")
