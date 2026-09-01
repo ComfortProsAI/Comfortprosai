@@ -12,33 +12,55 @@ api_key = st.secrets.get("GEMINI_API_KEY", "")
 if not api_key:
     api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
+# Initialize chat history in session state if it doesn't exist
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Hello! I am your Comfort Pros AI assistant. What would you like to build, write, or manage today?"}
+    ]
+
 # Main Interface Tabs
-tab1, tab2, tab3 = st.tabs(["💬 Marketing & Operations AI", "📊 Location Data", "🛠️ Quick Actions"])
+tab1, tab2, tab3 = st.tabs(["💬 Chat & Marketing AI", "📊 Location Data", "🛠️ Quick Actions"])
 
 with tab1:
     st.subheader("Comfort Pros Executive Assistant")
-    st.write("Tell Gemini what you want to execute (e.g., *'Write a Google post for a 15% off spring tune-up in Gilbert'* or *'Draft a response to a 5-star review'*).")
     
-    prompt = st.text_area("What do you want to build, write, or solve today?", height=100)
-    
-    if st.button("Execute with Gemini", type="primary"):
+    # Display historical chat messages in bubbles
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Chat input box pinned at the bottom of the tab/screen
+    if prompt := st.chat_input("Ask Gemini anything about marketing, operations, or reviews..."):
         if not api_key:
-            st.error("Please configure your Gemini API key!")
-        elif not prompt:
-            st.warning("Please type a request first.")
+            st.error("Please configure your Gemini API key in Streamlit Secrets or the sidebar!")
         else:
-            with st.spinner("Comfort Pros AI is working..."):
-                try:
-                    client = genai.Client(api_key=api_key)
-                    # System instruction forces Gemini to act specifically as your business partner
-                    response = client.models.generate_content(
-                        model="gemini-3.6-flash",
-                        contents=f"You are the internal operations and marketing AI for Comfort Pros, an HVAC contractor operating in Arizona (Gilbert/Phoenix metro) and California. Keep answers practical, direct, and focused on growing and running an HVAC business. Here is the request: {prompt}",
-                    )
-                    st.success("Done!")
-                    st.write(response.text)
-                except Exception as e:
-                    st.error(f"Error: {e}")
+            # Append user message to history and display it
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            # Generate Gemini response
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    try:
+                        client = genai.Client(api_key=api_key)
+                        
+                        # Format history for Gemini or pass prompt with system context
+                        system_instruction = "You are the internal operations and marketing AI for Comfort Pros, an HVAC contractor operating in Arizona (Gilbert/Phoenix metro) and California. Keep answers practical, direct, and focused on growing and running an HVAC business."
+                        
+                        full_prompt = f"{system_instruction}\n\nUser Request: {prompt}"
+                        
+                        response = client.models.generate_content(
+                            model="gemini-3.6-flash",
+                            contents=full_prompt,
+                        )
+                        answer = response.text
+                        st.markdown(answer)
+                        
+                        # Append assistant response to history
+                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
 with tab2:
     st.subheader("Business Locations & Analytics")
