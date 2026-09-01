@@ -1,39 +1,39 @@
 import streamlit as st
 from google import genai
 
+# Page Config
 st.set_page_config(page_title="Comfort Pros Command Center", page_icon="❄️", layout="wide")
 
 st.title("❄️ Comfort Pros Command Center")
 st.markdown("Your private AI-powered control hub for Arizona & California operations.")
 
-# Automatically load the API key from Streamlit secrets
+# Load API key from Streamlit secrets or sidebar fallback
 api_key = st.secrets.get("GEMINI_API_KEY", "")
-
 if not api_key:
-    # Fallback to sidebar input if secrets aren't set yet
-    api_key = st.sidebar.text_input("Enter your Gemini API Key", type="password")
+    api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
 # Main Interface Tabs
-tab1, tab2, tab3 = st.tabs(["💬 AI Assistant & Marketing", "📊 Location Data", "🛠️ Quick Actions"])
+tab1, tab2, tab3 = st.tabs(["💬 Marketing & Operations AI", "📊 Location Data", "🛠️ Quick Actions"])
 
 with tab1:
-    st.subheader("Gemini Business & Marketing Assistant")
-    st.write("Ask Gemini to write ad copy, draft review responses, or analyze customer feedback.")
+    st.subheader("Comfort Pros Executive Assistant")
+    st.write("Tell Gemini what you want to execute (e.g., *'Write a Google post for a 15% off spring tune-up in Gilbert'* or *'Draft a response to a 5-star review'*).")
     
-    prompt = st.text_area("What do you want to create or analyze today?")
+    prompt = st.text_area("What do you want to build, write, or solve today?", height=100)
     
-    if st.button("Generate with Gemini"):
+    if st.button("Execute with Gemini", type="primary"):
         if not api_key:
-            st.error("Please configure your Gemini API key in Streamlit Secrets or the sidebar!")
+            st.error("Please configure your Gemini API key!")
         elif not prompt:
-            st.warning("Please type a request or prompt first.")
+            st.warning("Please type a request first.")
         else:
-            with st.spinner("Gemini is working on it..."):
+            with st.spinner("Comfort Pros AI is working..."):
                 try:
                     client = genai.Client(api_key=api_key)
+                    # System instruction forces Gemini to act specifically as your business partner
                     response = client.models.generate_content(
                         model="gemini-3.6-flash",
-                        contents=prompt,
+                        contents=f"You are the internal operations and marketing AI for Comfort Pros, an HVAC contractor operating in Arizona (Gilbert/Phoenix metro) and California. Keep answers practical, direct, and focused on growing and running an HVAC business. Here is the request: {prompt}",
                     )
                     st.success("Done!")
                     st.write(response.text)
@@ -42,10 +42,23 @@ with tab1:
 
 with tab2:
     st.subheader("Business Locations & Analytics")
-    st.metric(label="Arizona Office (Gilbert)", value="Active", delta="Operational")
-    st.metric(label="California Office", value="Active", delta="Operational")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="Arizona Office (Gilbert)", value="Active", delta="ROC #364742")
+    with col2:
+        st.metric(label="California Operations", value="Active", delta="Ready")
 
 with tab3:
     st.subheader("Action Center")
-    if st.button("Run Connection Check"):
-        st.success("Local environment check passed!")
+    st.write("Trigger tools, copy local listing guidelines, or generate structured schema.")
+    if st.button("Generate Local Schema Markup"):
+        st.code("""
+{
+  "@context": "https://schema.org",
+  "@type": "HVACBusiness",
+  "name": "Comfort Pros",
+  "telephone": "+1-XXXXXXXXXX",
+  "url": "https://comfortprosaz.com",
+  "areaServed": ["Gilbert", "Phoenix", "Mesa", "Chandler", "Scottsdale"]
+}
+        """, language="json")
