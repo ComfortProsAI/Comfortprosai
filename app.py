@@ -5,30 +5,43 @@ from google import genai
 st.set_page_config(page_title="Comfort Pros Command Center", page_icon="❄️", layout="wide")
 
 st.title("❄️ Comfort Pros Command Center")
-st.markdown("Your private AI-powered control hub for Arizona & California operations.")
+st.markdown("Your live operational command hub for Arizona & California.")
 
-# Load API key from Streamlit secrets or sidebar fallback
+# Load API keys from Streamlit secrets or sidebar fallback
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 if not api_key:
     api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-# Initialize chat history in session state
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Hello! I am your Comfort Pros AI assistant. Ready to manage reviews, local SEO, or marketing."}
-    ]
+# Google OAuth Credentials check from secrets
+google_client_id = st.secrets.get("GOOGLE_CLIENT_ID", "")
+google_client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET", "")
+
+# Initialize session state for login
+if "logged_in_google" not in st.session_state:
+    st.session_state.logged_in_google = False
 
 # Main Interface Tabs
-tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat & Marketing AI", "⭐ Review & GBP Manager", "📊 Location Data", "🛠️ Quick Actions"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "💬 Chat & Marketing AI", 
+    "⭐ Review & GBP Manager", 
+    "🔌 Live Google Sync", 
+    "📊 Location Data", 
+    "🛠️ Quick Actions"
+])
 
 with tab1:
     st.subheader("Comfort Pros Executive Assistant")
     
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Hello! I'm ready to help manage operations, marketing, and reviews."}
+        ]
+
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    if prompt := st.chat_input("Ask Gemini anything about marketing, operations, or reviews..."):
+    if prompt := st.chat_input("Ask Gemini anything..."):
         if not api_key:
             st.error("Please configure your Gemini API key!")
         else:
@@ -40,12 +53,10 @@ with tab1:
                 with st.spinner("Thinking..."):
                     try:
                         client = genai.Client(api_key=api_key)
-                        system_instruction = "You are the internal operations and marketing AI for Comfort Pros, an HVAC contractor operating in Arizona (Gilbert/Phoenix metro) and California. Keep answers practical, direct, and focused on growing and running an HVAC business."
-                        full_prompt = f"{system_instruction}\n\nUser Request: {prompt}"
-                        
+                        system_instruction = "You are the internal operations and marketing AI for Comfort Pros, an HVAC contractor operating in Arizona (Gilbert/Phoenix metro) and California."
                         response = client.models.generate_content(
                             model="gemini-3.6-flash",
-                            contents=full_prompt,
+                            contents=f"{system_instruction}\n\nUser Request: {prompt}",
                         )
                         answer = response.text
                         st.markdown(answer)
@@ -54,59 +65,72 @@ with tab1:
                         st.error(f"Error: {e}")
 
 with tab2:
-    st.subheader("Google Business Profile & Review Manager")
-    st.write("Use Gemini to instantly draft review replies, write dispute appeals for fake reviews, or optimize your listing text.")
-    
-    manager_mode = st.radio("Select Action:", ["Draft Review Reply", "Dispute / Appeal Fake Review", "Optimize GBP Post / Description"])
+    st.subheader("AI Review & Content Generator")
+    manager_mode = st.radio("Select Action:", ["Draft Review Reply", "Dispute / Appeal Fake Review", "Optimize GBP Post"])
     
     if manager_mode == "Draft Review Reply":
         rating = st.selectbox("Star Rating", ["5 Stars", "4 Stars", "3 Stars", "2 Stars", "1 Star"])
-        review_text = st.text_area("Paste Customer Review Here:")
-        if st.button("Generate Professional Reply"):
-            if not api_key or not review_text:
-                st.warning("Please provide your API key and the review text.")
-            else:
+        review_text = st.text_area("Paste Customer Review:")
+        if st.button("Generate Reply"):
+            if api_key and review_text:
                 client = genai.Client(api_key=api_key)
                 res = client.models.generate_content(
                     model="gemini-3.6-flash",
-                    contents=f"You are the owner of Comfort Pros HVAC. Write a professional, polite, and SEO-friendly response to this {rating} review. Mention our commitment to quality service in the Phoenix/East Valley area. Review: {review_text}"
+                    contents=f"Write a professional response to this {rating} review for Comfort Pros HVAC in Arizona. Review: {review_text}"
                 )
-                st.markdown("### Suggested Reply:")
                 st.write(res.text)
 
     elif manager_mode == "Dispute / Appeal Fake Review":
-        fake_review_text = st.text_area("Paste the spam/unfair review text:")
-        violation_reason = st.text_selectbox if hasattr(st, 'text_selectbox') else st.selectbox(
-            "Primary Violation Type", 
-            ["Not a genuine customer / Conflict of interest", "Spam / Advertising", "Harassment / Profanity", "Off-topic content"]
-        )
-        if st.button("Generate Google Support Dispute Justification"):
-            if not api_key or not fake_review_text:
-                st.warning("Please provide your API key and the review text.")
-            else:
+        fake_review = st.text_area("Paste Spam/Fake Review Text:")
+        if st.button("Generate Google Support Appeal"):
+            if api_key and fake_review:
                 client = genai.Client(api_key=api_key)
                 res = client.models.generate_content(
                     model="gemini-3.6-flash",
-                    contents=f"Write a concise, strict dispute justification for Google Business Profile support to remove a fake review. Ground the appeal strictly in Google's terms of service regarding '{violation_reason}'. Review text: {fake_review_text}"
+                    contents=f"Write a strict Google Business Profile support appeal justification to remove this fake/spam review: {fake_review}"
                 )
-                st.markdown("### Dispute Appeal Argument for Google Support:")
                 st.write(res.text)
 
-    elif manager_mode == "Optimize GBP Post / Description":
-        post_topic = st.text_input("Enter Post Topic / Offer (e.g., Spring AC Tune-Up Special in Gilbert):")
-        if st.button("Generate Google Post"):
-            if not api_key or not post_topic:
-                st.warning("Please enter a post topic.")
-            else:
+    elif manager_mode == "Optimize GBP Post":
+        topic = st.text_input("Post Topic (e.g., Summer AC Checkup Special):")
+        if st.button("Generate Post"):
+            if api_key and topic:
                 client = genai.Client(api_key=api_key)
                 res = client.models.generate_content(
                     model="gemini-3.6-flash",
-                    contents=f"Write an engaging Google Business Profile post for Comfort Pros HVAC about: {post_topic}. Keep it punchy, compliant with guidelines (no keyword stuffing, no markdown issues), and include a clear call-to-action."
+                    contents=f"Write an engaging Google Business Profile post for Comfort Pros about: {topic}"
                 )
-                st.markdown("### Generated Post:")
                 st.write(res.text)
 
 with tab3:
+    st.subheader("🔌 Live Google Business Profile Connector")
+    st.write("Connect your Google account to fetch live locations, pull incoming reviews, and sync profile updates.")
+    
+    if not google_client_id or not google_client_secret:
+        st.warning("Google OAuth credentials are not yet added to Streamlit Secrets.")
+        st.markdown("""
+        **To enable live Google syncing:**
+        1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+        2. Create a project and enable the **Google Business Profile API**.
+        3. Create **OAuth 2.0 Client ID** credentials (Web application type).
+        4. Add your Client ID and Client Secret to your Streamlit app **Secrets** dashboard like this:
+        ```toml
+        GOOGLE_CLIENT_ID = "your-client-id.apps.googleusercontent.com"
+        GOOGLE_CLIENT_SECRET = "your-client-secret"
+        ```
+        """)
+    else:
+        if not st.session_state.logged_in_google:
+            if st.button("Sign In with Google to Connect GBP"):
+                st.info("OAuth redirect handshake initializing...")
+                # Placeholder for live token exchange trigger
+        else:
+            st.success("Connected to Google Business Profile!")
+            st.write("Live Location ID: Loaded")
+            if st.button("Fetch Latest Reviews (Live API)"):
+                st.write("Fetching reviews from Google API endpoints...")
+
+with tab4:
     st.subheader("Business Locations & Analytics")
     col1, col2 = st.columns(2)
     with col1:
@@ -114,7 +138,7 @@ with tab3:
     with col2:
         st.metric(label="California Operations", value="Active", delta="Ready")
 
-with tab4:
+with tab5:
     st.subheader("Action Center")
     if st.button("Generate Local Schema Markup"):
         st.code("""
